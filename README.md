@@ -111,7 +111,7 @@ Results can be found in /output_images/tracked*.jpg like:
 **Pipeline (video)**
 **1. Provide a link to your final video output. Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).**
 You can find the out videos in the git repository:
-https://github.com/pineal/Advanced_Lane_Lines_Detection/blob/master/[project_video_output.mp4](https://github.com/pineal/Advanced_Lane_Lines_Detection/blob/master/project_video_output.mp4)
+[project_video_output.mp4](https://github.com/pineal/Advanced_Lane_Lines_Detection/blob/master/project_video_output.mp4)
 
 **Discussion**
 
