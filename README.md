@@ -1,6 +1,8 @@
+# Advanced Lane Finding Project
 
-# 
-**Advanced Lane Finding Project**
+
+# Advanced Lane Finding Project
+
 The goals / steps of this project are the following:
 
 - Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
@@ -12,15 +14,15 @@ The goals / steps of this project are the following:
 - Warp the detected lane boundaries back onto the original image.
 - Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 
-**Writeup / README**
+
+## Writeup / README
+
 **1. Provide a Writeup / README that includes all the rubric points and how you addressed each one. You can submit your writeup as markdown or pdf.** [**Here**](https://github.com/udacity/CarND-Advanced-Lane-Lines/blob/master/writeup_template.md) **is a template writeup for this project you can use as a guide and a starting point.**
 You're reading it!
 
+## Camera Calibration
 
-**Camera Calibration**
 **1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.**
-
-
 
 I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image. Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image. `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.
 
@@ -75,7 +77,7 @@ where h is height of image and w is the width of image, and take an offset of 33
 
 **4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?**
 
-I firstly use fit_curve() function through line 136 to 162 of pipelines.py to find the curve by window mask and marked them as green like /output_images/fitted*.jpg:
+I firstly use fit*_curve() function through line 136 to 162 of pipelines.py to find the curve by window mask and marked them as green like /output_*images/fitted*.jpg:
 
 ![fitted0.jpg](https://github.com/pineal/Advanced_Lane_Lines_Detection/blob/master/output_images/fitted0.jpg?raw=true)
 
@@ -85,39 +87,42 @@ Then I did some other stuff and fit my lane lines with a 2nd order polynomial ki
 ![](https://github.com/udacity/CarND-Advanced-Lane-Lines/raw/master/examples/color_fit_lines.jpg)
 
 
-With the output of fix_curve(), I can also draw the road images like /output_images/road*.jpg, and uses these points to fit the polynomial curve by numpy.polyfit (line 177 - 180).
+With the output of fix*_curve(), I can also draw the road images like /output_*images/road*.jpg, and uses these points to fit the polynomial curve by numpy.polyfit (line 177 - 180).
 
 **5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.**
 
 From line 177 to line 186 I firstly define conversions in x and y from pixels space to meters where meters per pixel in y dimension is 10/720 and  meters per pixel in x dimension is 4/384.
 Then fit new polynomials to x,y in world space:
 
-        left_fit_cr = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
-        right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2)
+          left_fit_cr = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
+          right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2)
 
+  
 And get the curverad for both left and right lanes, also use the average to get the center and current position diff form center:
 
-        left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
-        right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
 
-        center = (left_fitx[-1] + right_fitx[-1])/2
-        center_diff = (warped.shape[1]/2 - center)*xm_per_pix
-
+            left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
+            right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
+            center = (left_fitx[-1] + right_fitx[-1])/2
+            center_diff = (warped.shape[1]/2 - center)*xm_per_pix        
 
 **6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.**
+
 Finally I can draw the result back to the road, which was implemented in function draw_image() from line 192 to line 225.
 Results can be found in /output_images/tracked*.jpg like:
 
 ![tracked0.jpg](https://github.com/pineal/Advanced_Lane_Lines_Detection/blob/master/output_images/tracked0.jpg?raw=true)
 ![tracked2.jpg](https://github.com/pineal/Advanced_Lane_Lines_Detection/blob/master/output_images/tracked2.jpg?raw=true)
 
+## Pipeline (video)
 
-**Pipeline (video)**
 **1. Provide a link to your final video output. Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).**
+
 You can find the out videos in the git repository:
 [project_video_output.mp4](https://github.com/pineal/Advanced_Lane_Lines_Detection/blob/master/project_video_output.mp4)
 
-**Discussion**
+
+## Discussion
 
 **1. Briefly discuss any problems / issues you faced in your implementation of this project. Where will your pipeline likely fail? What could you do to make it more robust?**
 
