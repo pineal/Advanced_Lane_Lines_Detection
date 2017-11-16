@@ -125,6 +125,38 @@ def warp_image(img):
     warped = cv2.warpPerspective(img, M, img_size)
     return warped, M, Minv
 
+# Load testing images
+images = glob.glob('./test_images/test*.jpg')
+# window settings
+window_width = 50 
+window_height = 80 # Break image into 9 vertical layers since image height is 720
+margin = 100 # How much to slide left and right for searching
+index = 0
+
+ploty = np.linspace(0, 719, num=9)
+
+def image_processing(img):
+    img_size = (img.shape[1], img.shape[0])
+    undistorted_img = cv2.undistort(img, mtx, dist, None, mtx)
+    write_name = './output_images/undistort' + str(index) + '.jpg'
+    cv2.imwrite(write_name, undistorted_img)
+    preprocessed_img = preprocess_image(img)
+    write_name = './output_images/preprocessed' + str(index) + '.jpg'
+    cv2.imwrite(write_name, preprocessed_img)
+    warped, perspective_M, perspective_Minv = warp_image(preprocessed_img)
+    write_name = './output_images/warpped' + str(index) + '.jpg'
+    cv2.imwrite(write_name, warped)
+    window_centroids = find_window_centroids(warped)
+    fitted, leftx, rightx = fit_curve(warped, window_centroids)
+    write_name = './output_images/fitted' + str(index) + '.jpg'
+    cv2.imwrite(write_name, fitted)
+    leftx, rightx, left_fitx, right_fitx, left_curverad, right_curverad = measuring_curvature(leftx, rightx)
+    result = draw_image(img, warped, perspective_M, left_fitx, right_fitx, left_curverad, right_curverad)
+    return result    
+
+
+
+
 def fit_curve(warped, window_centroids):
     leftx = []
     rightx = []
@@ -150,116 +182,111 @@ def fit_curve(warped, window_centroids):
     template = np.array(cv2.merge((zero_channel,template,zero_channel)),np.uint8) # make window pixels green
     out_img = np.dstack((warped, warped, warped))*255
     warpage = np.array(out_img,np.uint8) # making the original road pixels 3 color channels
-    output = cv2.addWeighted(warpage, 1, template, 0.5, 0.0) # overlay the orignal road image with window results
-    return output, leftx, rightx
+    fitted = cv2.addWeighted(warpage, 1, template, 0.5, 0.0) # overlay the orignal road image with window results
+    return fitted, leftx, rightx
 
+    yvals = range(0, warped.shape[0])
+    res_yvals = np.arange(warped.shape[0] - (window_height/2), 0, -window_height)
 
-def measuring_curvature(leftx, rightx):
+def img_process(img):
+    img_size = (img.shape[1], img.shape[0])
+    undistorted_img = cv2.undistort(img, mtx, dist, None, mtx)
+    write_name = './output_images/undistort' + str(index) + '.jpg'
+    cv2.imwrite(write_name, undistorted_img)
+    preprocessed_img = preprocess_image(img)
+    write_name = './output_images/preprocessed' + str(index) + '.jpg'
+    cv2.imwrite(write_name, preprocessed_img)
+    warped, perspective_M, perspective_Minv = warp_image(preprocessed_img)
+
+    write_name = './output_images/warpped' + str(index) + '.jpg'
+    cv2.imwrite(write_name, warped)
+    window_centroids = find_window_centroids(warped)
+    
+    leftx = []
+    rightx = []
+
+    l_points = np.zeros_like(warped)
+    r_points = np.zeros_like(warped)
+
+    # Go through each level and draw the windows 	
+    for level in range(0,len(window_centroids)):
+
+        leftx.append(window_centroids[level][0])
+        rightx.append(window_centroids[level][1])
+        # Window_mask is a function to draw window areas
+        l_mask = window_mask(window_width,window_height,warped,window_centroids[level][0],level)
+        r_mask = window_mask(window_width,window_height,warped,window_centroids[level][1],level)
+        # Add graphic points from window mask here to total pixels found 
+        l_points[(l_points == 255) | ((l_mask == 1) ) ] = 255
+        r_points[(r_points == 255) | ((r_mask == 1) ) ] = 255
+
+    # Draw the results
+    template = np.array(r_points+l_points,np.uint8) # add both left and right window pixels together
+    zero_channel = np.zeros_like(template) # create a zero color channel
+    template = np.array(cv2.merge((zero_channel,template,zero_channel)),np.uint8) # make window pixels green
+    out_img = np.dstack((warped, warped, warped))*255
+    warpage = np.array(out_img,np.uint8) # making the original road pixels 3 color channels
+    fitted = cv2.addWeighted(warpage, 1, template, 0.5, 0.0) # overlay the orignal road image with window results
+
+    yvals = range(0, warped.shape[0])
+    res_yvals = np.arange(warped.shape[0] - (window_height/2), 0, -window_height)
 
     leftx = np.asarray(leftx[::-1])  # Reverse to match top-to-bottom in y
     rightx = np.asarray(rightx[::-1])  # Reverse to match top-to-bottom in y
-    
-    # Fit a second order polynomial to pixel positions in each fake lane line
-    left_fit = np.polyfit(ploty, leftx, 2)
+
+    left_fit = np.polyfit(ploty, leftx, 2)      
     left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
     right_fit = np.polyfit(ploty, rightx, 2)
     right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
 
-    # Define y-value where we want radius of curvature
-    # I'll choose the maximum y-value, corresponding to the bottom of the image
-    y_eval = np.max(ploty)
-    #left_curverad = ((1 + (2*left_fit[0]*y_eval + left_fit[1])**2)**1.5) / np.absolute(2*left_fit[0])
-    #right_curverad = ((1 + (2*right_fit[0]*y_eval + right_fit[1])**2)**1.5) / np.absolute(2*right_fit[0])
-    #print(left_curverad, right_curverad)
-    # Example values: 1926.74 1908.48
+    left_lane = np.array(list(zip(np.concatenate((left_fitx-window_width/2, left_fitx[::-1]+window_width/2), axis=0), np.concatenate((ploty, ploty[::-1]), axis=0))), np.int32)
+    right_lane = np.array(list(zip(np.concatenate((right_fitx-window_width/2, right_fitx[::-1]+window_width/2), axis=0), np.concatenate((ploty, ploty[::-1]), axis=0))), np.int32)
+    inner_lane = np.array(list(zip(np.concatenate((left_fitx+window_width/2, right_fitx[::-1]-window_width/2), axis=0), np.concatenate((ploty, ploty[::-1]), axis=0))), np.int32)
 
+    road = np.zeros_like(img)
+    road_bkg = np.zeros_like(img) 
+    cv2.fillPoly(road, [left_lane], color= [255,0,0])
+    cv2.fillPoly(road, [right_lane], color = [0,0,255])
+    cv2.fillPoly(road, [inner_lane], color = [0,255,0])
+    cv2.fillPoly(road_bkg, [left_lane], color = [255, 255, 255])
+    cv2.fillPoly(road_bkg, [right_lane], color = [255, 255, 255])
+    Minv = np.linalg.inv(perspective_M)
+
+    road_warped = cv2.warpPerspective(road, Minv, img_size, flags = cv2.INTER_LINEAR)
+    road_warped_bkg = cv2.warpPerspective(road_bkg, Minv, img_size, flags = cv2.INTER_LINEAR)
+    base =   cv2.addWeighted(undistorted_img, 1.0, road_warped_bkg, -1.0, 0.0)
+    
+    result = cv2.addWeighted(base, 1.0, road_warped, 0.7, 0.0)    
+    
+    ym_per_pix = 10/720 # meters per pixel in y dimension
+    xm_per_pix = 4/384 # meters per pixel in x dimension
+
+    
+    center = (left_fitx[-1] + right_fitx[-1])/2
+    center_diff = (warped.shape[1]/2 - center)*xm_per_pix
     # Define conversions in x and y from pixels space to meters
-    ym_per_pix = 30/720 # meters per pixel in y dimension
-    xm_per_pix = 3.7/700 # meters per pixel in x dimension
-
+    y_eval = np.max(ploty)
     # Fit new polynomials to x,y in world space
     left_fit_cr = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
-    right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2)
-    
+    right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2) 
     # Calculate the new radii of curvature
     left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
     right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
-    # Now our radius of curvature is in meters
-    #print(left_curverad, 'm', right_curverad, 'm')
-    
-    return leftx, rightx, left_fitx, right_fitx, left_curverad, right_curverad
-
-def draw_image(image, warp, persp_M, le_fitx, ri_fitx, left_curverad, right_curverad):
-    Minv = np.linalg.inv(persp_M)
-
-    # Create an image to draw the lines on
-    warp_zero = np.zeros_like(warp).astype(np.uint8)
-    color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
-
-    # Recast the x and y points into usable format for cv2.fillPoly()
-    pts_left = np.array([np.transpose(np.vstack([le_fitx, ploty]))])
-    pts_right = np.array([np.flipud(np.transpose(np.vstack([ri_fitx, ploty])))])
-    pts = np.hstack((pts_left, pts_right))
-
-    # Draw the lane onto the warped blank image
-    cv2.fillPoly(color_warp, np.int_([pts]), (0,255,0))
-
-    # Warp the blank back to original image space using inverse perspective matrix (Minv)
-    newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0]))
-    # Combine the result with the original image
-    result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
-    pts = np.argwhere(newwarp[:,:,1])
-
-    left  = np.min(pts[(pts[:,1] < image.shape[1]/2) & (pts[:,0] > 700)][:,1])
-    right = np.max(pts[(pts[:,1] > image.shape[1]/2) & (pts[:,0] > 700)][:,1])
-    center = (left + right)/2
-    
-    # Define conversions in x and y from pixels space to meters
-    xm_per_pix = 3.7/700 # meteres per pixel in x dimension    
-    position = (image.shape[1]/2 - center)*xm_per_pix
     dir_str = 'right'
-    if position < 0:
+    if center_diff < 0:
         dir_str = 'left'
-    cv2.putText(result, 'Vehicle is ' + str(round(center*3.7/700, 3)) + 'm ' + dir_str + ' of center', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(result, 'Vehicle is ' + str(abs(round(center_diff, 3))) + ' m ' + dir_str + ' of center', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
     cv2.putText(result, 'Radius of curvature = ' + str(round((left_curverad + right_curverad)/2, 3)) + ' (m)', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-    return result
-
-# Load testing images
-images = glob.glob('./test_images/test*.jpg')
-# window settings
-window_width = 50 
-window_height = 80 # Break image into 9 vertical layers since image height is 720
-margin = 100 # How much to slide left and right for searching
-index = 0
-
-ploty = np.linspace(0, 719, num=9)
-
-def image_processing(img):
-    img_size = (img.shape[1], img.shape[0])
-    undistorted_img = cv2.undistort(img, mtx, dist, None, mtx)
-    #write_name = './output_images/undistort' + str(index) + '.jpg'
-    #cv2.imwrite(write_name, undistorted_img)
-    preprocessed_img = preprocess_image(img)
-    #write_name = './output_images/preprocessed' + str(index) + '.jpg'
-    #cv2.imwrite(write_name, preprocessed_img)
-    warped, perspective_M, perspective_Minv = warp_image(preprocessed_img)
-    #write_name = './output_images/warpped' + str(index) + '.jpg'
-    #cv2.imwrite(write_name, warped)
-    window_centroids = find_window_centroids(warped)
-    fitted, leftx, rightx = fit_curve(warped, window_centroids)
-    write_name = './output_images/fitted' + str(index) + '.jpg'
-    cv2.imwrite(write_name, fitted)
-    leftx, rightx, left_fitx, right_fitx, left_curverad, right_curverad = measuring_curvature(leftx, rightx)
-    result = draw_image(img, warped, perspective_M, left_fitx, right_fitx, left_curverad, right_curverad)
     
-    return result    
+    return result
 
 
 for idx, fname in enumerate (images):
     # read in image
     index = idx
     img = cv2.imread(fname)
-    result = image_processing(img)
+    #result = image_processing(img)
+    result = img_process(img)
     write_name = './output_images/tracked' + str(index) + '.jpg'
     cv2.imwrite(write_name, result)
 
@@ -269,6 +296,6 @@ Output_video = 'project_video_output.mp4'
 Input_video = 'project_video.mp4'
 #Input_video = 'challenge_video.mp4'
 #Input_video = 'harder_challenge_video.mp4'
-#clip1 = VideoFileClip(Input_video)
-#video_clip = clip1.fl_image(image_processing)
-#video_clip.write_videofile(Output_video, audio=False)
+clip1 = VideoFileClip(Input_video).subclip(41, 43)
+video_clip = clip1.fl_image(img_process)
+video_clip.write_videofile(Output_video, audio=False)
