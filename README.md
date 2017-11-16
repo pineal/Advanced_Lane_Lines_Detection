@@ -75,7 +75,7 @@ where h is height of image and w is the width of image, and take an offset of 33
 
 **4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?**
 
-I firstly use fit_curve() function through line 128 to 154 of pipelines.py to find the curve by window mask and marked them as green like /output_images/fitted*.jpg:
+I firstly use fit_curve() function through line 136 to 162 of pipelines.py to find the curve by window mask and marked them as green like /output_images/fitted*.jpg:
 
 ![fitted0.jpg](https://github.com/pineal/Advanced_Lane_Lines_Detection/blob/master/output_images/fitted0.jpg?raw=true)
 
@@ -85,20 +85,24 @@ Then I did some other stuff and fit my lane lines with a 2nd order polynomial ki
 ![](https://github.com/udacity/CarND-Advanced-Lane-Lines/raw/master/examples/color_fit_lines.jpg)
 
 
-I chose polyfit function from numpy lib to do the fit, it’s a part of measuring_curvature() function through line 162 to 166. 
+With the output of fix_curve(), I can also draw the road images like /output_images/road*.jpg, and uses these points to fit the polynomial curve by numpy.polyfit (line 177 - 180).
 
 **5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.**
 
-From line 177 to line 186 I firstly define conversions in x and y from pixels space to meters where meters per pixel in y dimension is 30/720 and  meters per pixel in x dimension is 3.7/700.
+From line 177 to line 186 I firstly define conversions in x and y from pixels space to meters where meters per pixel in y dimension is 10/720 and  meters per pixel in x dimension is 4/384.
 Then fit new polynomials to x,y in world space:
 
         left_fit_cr = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
         right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2)
 
-And get the curverad for both left and right lanes:
+And get the curverad for both left and right lanes, also use the average to get the center and current position diff form center:
 
         left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
         right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
+
+        center = (left_fitx[-1] + right_fitx[-1])/2
+        center_diff = (warped.shape[1]/2 - center)*xm_per_pix
+
 
 **6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.**
 Finally I can draw the result back to the road, which was implemented in function draw_image() from line 192 to line 225.

@@ -119,11 +119,9 @@ def warp_image(img):
 
     # Given src and dst points, calculate the perspective transform matrix
     M = cv2.getPerspectiveTransform(src, dst)
-    # Reversed transform matrix
-    Minv = cv2.getPerspectiveTransform(src, dst)
     # Warp the image using OpenCV warpPerspective()
     warped = cv2.warpPerspective(img, M, img_size)
-    return warped, M, Minv
+    return warped, M
 
 # Load testing images
 images = glob.glob('./test_images/test*.jpg')
@@ -134,28 +132,6 @@ margin = 100 # How much to slide left and right for searching
 index = 0
 
 ploty = np.linspace(0, 719, num=9)
-
-def image_processing(img):
-    img_size = (img.shape[1], img.shape[0])
-    undistorted_img = cv2.undistort(img, mtx, dist, None, mtx)
-    write_name = './output_images/undistort' + str(index) + '.jpg'
-    cv2.imwrite(write_name, undistorted_img)
-    preprocessed_img = preprocess_image(img)
-    write_name = './output_images/preprocessed' + str(index) + '.jpg'
-    cv2.imwrite(write_name, preprocessed_img)
-    warped, perspective_M, perspective_Minv = warp_image(preprocessed_img)
-    write_name = './output_images/warpped' + str(index) + '.jpg'
-    cv2.imwrite(write_name, warped)
-    window_centroids = find_window_centroids(warped)
-    fitted, leftx, rightx = fit_curve(warped, window_centroids)
-    write_name = './output_images/fitted' + str(index) + '.jpg'
-    cv2.imwrite(write_name, fitted)
-    leftx, rightx, left_fitx, right_fitx, left_curverad, right_curverad = measuring_curvature(leftx, rightx)
-    result = draw_image(img, warped, perspective_M, left_fitx, right_fitx, left_curverad, right_curverad)
-    return result    
-
-
-
 
 def fit_curve(warped, window_centroids):
     leftx = []
@@ -188,45 +164,9 @@ def fit_curve(warped, window_centroids):
     yvals = range(0, warped.shape[0])
     res_yvals = np.arange(warped.shape[0] - (window_height/2), 0, -window_height)
 
-def img_process(img):
-    img_size = (img.shape[1], img.shape[0])
-    undistorted_img = cv2.undistort(img, mtx, dist, None, mtx)
-    write_name = './output_images/undistort' + str(index) + '.jpg'
-    cv2.imwrite(write_name, undistorted_img)
-    preprocessed_img = preprocess_image(img)
-    write_name = './output_images/preprocessed' + str(index) + '.jpg'
-    cv2.imwrite(write_name, preprocessed_img)
-    warped, perspective_M, perspective_Minv = warp_image(preprocessed_img)
+def draw_image(undistorted_img, warped, leftx, rightx, perspective_M):
 
-    write_name = './output_images/warpped' + str(index) + '.jpg'
-    cv2.imwrite(write_name, warped)
-    window_centroids = find_window_centroids(warped)
-    
-    leftx = []
-    rightx = []
-
-    l_points = np.zeros_like(warped)
-    r_points = np.zeros_like(warped)
-
-    # Go through each level and draw the windows 	
-    for level in range(0,len(window_centroids)):
-
-        leftx.append(window_centroids[level][0])
-        rightx.append(window_centroids[level][1])
-        # Window_mask is a function to draw window areas
-        l_mask = window_mask(window_width,window_height,warped,window_centroids[level][0],level)
-        r_mask = window_mask(window_width,window_height,warped,window_centroids[level][1],level)
-        # Add graphic points from window mask here to total pixels found 
-        l_points[(l_points == 255) | ((l_mask == 1) ) ] = 255
-        r_points[(r_points == 255) | ((r_mask == 1) ) ] = 255
-
-    # Draw the results
-    template = np.array(r_points+l_points,np.uint8) # add both left and right window pixels together
-    zero_channel = np.zeros_like(template) # create a zero color channel
-    template = np.array(cv2.merge((zero_channel,template,zero_channel)),np.uint8) # make window pixels green
-    out_img = np.dstack((warped, warped, warped))*255
-    warpage = np.array(out_img,np.uint8) # making the original road pixels 3 color channels
-    fitted = cv2.addWeighted(warpage, 1, template, 0.5, 0.0) # overlay the orignal road image with window results
+    img_size = (undistorted_img.shape[1], undistorted_img.shape[0])
 
     yvals = range(0, warped.shape[0])
     res_yvals = np.arange(warped.shape[0] - (window_height/2), 0, -window_height)
@@ -243,19 +183,19 @@ def img_process(img):
     right_lane = np.array(list(zip(np.concatenate((right_fitx-window_width/2, right_fitx[::-1]+window_width/2), axis=0), np.concatenate((ploty, ploty[::-1]), axis=0))), np.int32)
     inner_lane = np.array(list(zip(np.concatenate((left_fitx+window_width/2, right_fitx[::-1]-window_width/2), axis=0), np.concatenate((ploty, ploty[::-1]), axis=0))), np.int32)
 
-    road = np.zeros_like(img)
-    road_bkg = np.zeros_like(img) 
+    road = np.zeros_like(undistorted_img)
+    road_bkg = np.zeros_like(undistorted_img) 
     cv2.fillPoly(road, [left_lane], color= [255,0,0])
     cv2.fillPoly(road, [right_lane], color = [0,0,255])
+    write_name = './output_images/road' + str(index) + '.jpg'
+    cv2.imwrite(write_name, road)
     cv2.fillPoly(road, [inner_lane], color = [0,255,0])
     cv2.fillPoly(road_bkg, [left_lane], color = [255, 255, 255])
     cv2.fillPoly(road_bkg, [right_lane], color = [255, 255, 255])
     Minv = np.linalg.inv(perspective_M)
-
     road_warped = cv2.warpPerspective(road, Minv, img_size, flags = cv2.INTER_LINEAR)
     road_warped_bkg = cv2.warpPerspective(road_bkg, Minv, img_size, flags = cv2.INTER_LINEAR)
     base =   cv2.addWeighted(undistorted_img, 1.0, road_warped_bkg, -1.0, 0.0)
-    
     result = cv2.addWeighted(base, 1.0, road_warped, 0.7, 0.0)    
     
     ym_per_pix = 10/720 # meters per pixel in y dimension
@@ -277,7 +217,29 @@ def img_process(img):
         dir_str = 'left'
     cv2.putText(result, 'Vehicle is ' + str(abs(round(center_diff, 3))) + ' m ' + dir_str + ' of center', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
     cv2.putText(result, 'Radius of curvature = ' + str(round((left_curverad + right_curverad)/2, 3)) + ' (m)', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    return result
+
+def image_processing(img):
     
+    undistorted_img = cv2.undistort(img, mtx, dist, None, mtx)
+    write_name = './output_images/undistort' + str(index) + '.jpg'
+    cv2.imwrite(write_name, undistorted_img)
+
+    preprocessed_img = preprocess_image(img)
+    write_name = './output_images/preprocessed' + str(index) + '.jpg'
+    cv2.imwrite(write_name, preprocessed_img)
+    
+    warped, perspective_M = warp_image(preprocessed_img)
+    write_name = './output_images/warpped' + str(index) + '.jpg'
+    cv2.imwrite(write_name, warped)
+    window_centroids = find_window_centroids(warped)
+   
+    fitted, leftx, rightx = fit_curve(warped, window_centroids)
+    write_name = './output_images/fitted' + str(index) + '.jpg'
+    cv2.imwrite(write_name, fitted)
+    
+    # Plot Back
+    result = draw_image(undistorted_img, warped, leftx, rightx, perspective_M)
     return result
 
 
@@ -285,8 +247,7 @@ for idx, fname in enumerate (images):
     # read in image
     index = idx
     img = cv2.imread(fname)
-    #result = image_processing(img)
-    result = img_process(img)
+    result = image_processing(img)
     write_name = './output_images/tracked' + str(index) + '.jpg'
     cv2.imwrite(write_name, result)
 
@@ -296,6 +257,6 @@ Output_video = 'project_video_output.mp4'
 Input_video = 'project_video.mp4'
 #Input_video = 'challenge_video.mp4'
 #Input_video = 'harder_challenge_video.mp4'
-clip1 = VideoFileClip(Input_video).subclip(41, 43)
-video_clip = clip1.fl_image(img_process)
+clip1 = VideoFileClip(Input_video)
+video_clip = clip1.fl_image(image_processing)
 video_clip.write_videofile(Output_video, audio=False)
