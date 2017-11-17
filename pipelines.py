@@ -9,6 +9,10 @@ dist_pickle = pickle.load (open("./camera_cal/calibration_pickle.p", "rb"))
 mtx = dist_pickle["mtx"]
 dist = dist_pickle["dist"]
 
+l_lane_cache = []
+r_lane_cache = []
+l_fitx_cache = []
+r_fitx_cache = []
 def abs_sobel_thresh(img, orient='x', thresh=(0, 255)):
     # Convert to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
@@ -124,7 +128,7 @@ def warp_image(img):
     return warped, M
 
 # Load testing images
-images = glob.glob('./test_images/test*.jpg')
+images = glob.glob('./test_images/*.jpg')
 # window settings
 window_width = 50 
 window_height = 80 # Break image into 9 vertical layers since image height is 720
@@ -182,7 +186,21 @@ def draw_image(undistorted_img, warped, leftx, rightx, perspective_M):
     left_lane = np.array(list(zip(np.concatenate((left_fitx-window_width/2, left_fitx[::-1]+window_width/2), axis=0), np.concatenate((ploty, ploty[::-1]), axis=0))), np.int32)
     right_lane = np.array(list(zip(np.concatenate((right_fitx-window_width/2, right_fitx[::-1]+window_width/2), axis=0), np.concatenate((ploty, ploty[::-1]), axis=0))), np.int32)
     inner_lane = np.array(list(zip(np.concatenate((left_fitx+window_width/2, right_fitx[::-1]-window_width/2), axis=0), np.concatenate((ploty, ploty[::-1]), axis=0))), np.int32)
+    diff = abs(right_lane[0][0] - left_lane[-1][0])
 
+    if diff >= 100:
+        l_lane_cache.append(left_lane)
+        r_lane_cache.append(right_lane)
+        l_fitx_cache.append(left_fitx)
+        r_fitx_cache.append(right_fitx)
+    elif (len(l_lane_cache) > 0 and len(r_lane_cache) > 0):
+        left_lane = l_lane_cache[-1]
+        right_lane = r_lane_cache[-1]
+        left_fitx = l_fitx_cache[-1]
+        right_fitx = r_fitx_cache[-1]
+        inner_lane = np.array(list(zip(np.concatenate((left_fitx+window_width/2, right_fitx[::-1]-window_width/2), axis=0), np.concatenate((ploty, ploty[::-1]), axis=0))), np.int32)
+
+        #return undistorted_img, False        
     road = np.zeros_like(undistorted_img)
     road_bkg = np.zeros_like(undistorted_img) 
     cv2.fillPoly(road, [left_lane], color= [255,0,0])
@@ -198,10 +216,9 @@ def draw_image(undistorted_img, warped, leftx, rightx, perspective_M):
     base =   cv2.addWeighted(undistorted_img, 1.0, road_warped_bkg, -1.0, 0.0)
     result = cv2.addWeighted(base, 1.0, road_warped, 0.7, 0.0)    
     
-    ym_per_pix = 10/720 # meters per pixel in y dimension
-    xm_per_pix = 4/384 # meters per pixel in x dimension
+    ym_per_pix = 30/720 # meters per pixel in y dimension
+    xm_per_pix = 3.7/700 # meters per pixel in x dimension
 
-    
     center = (left_fitx[-1] + right_fitx[-1])/2
     center_diff = (warped.shape[1]/2 - center)*xm_per_pix
     # Define conversions in x and y from pixels space to meters
@@ -242,6 +259,17 @@ def image_processing(img):
     result = draw_image(undistorted_img, warped, leftx, rightx, perspective_M)
     return result
 
+def video_frame_processing(img):
+    
+    undistorted_img = cv2.undistort(img, mtx, dist, None, mtx)
+    preprocessed_img = preprocess_image(img)
+    warped, perspective_M = warp_image(preprocessed_img)
+    window_centroids = find_window_centroids(warped)   
+    fitted, leftx, rightx = fit_curve(warped, window_centroids)
+    result = draw_image(undistorted_img, warped, leftx, rightx, perspective_M)
+    return result
+
+
 
 for idx, fname in enumerate (images):
     # read in image
@@ -258,5 +286,5 @@ Input_video = 'project_video.mp4'
 #Input_video = 'challenge_video.mp4'
 #Input_video = 'harder_challenge_video.mp4'
 clip1 = VideoFileClip(Input_video)
-video_clip = clip1.fl_image(image_processing)
+video_clip = clip1.fl_image(video_frame_processing)
 video_clip.write_videofile(Output_video, audio=False)

@@ -89,6 +89,10 @@ Then I did some other stuff and fit my lane lines with a 2nd order polynomial ki
 
 With the output of fix*_curve(), I can also draw the road images like /output_*images/road*.jpg, and uses these points to fit the polynomial curve by numpy.polyfit (line 177 - 180).
 
+**Update**
+I added a sanity check according to reviewers sugestion, if the lanes detected are too closed or intersected, I will bypass this result and apply the previous result I got.
+**Update End**
+
 **5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.**
 
 From line 177 to line 186 I firstly define conversions in x and y from pixels space to meters where meters per pixel in y dimension is 10/720 and  meters per pixel in x dimension is 4/384.
